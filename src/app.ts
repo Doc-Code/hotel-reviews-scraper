@@ -26,7 +26,7 @@ app.use(limiter);
 // Define routes
 // app.use("/scrape/expedia", expediaRoutes);
 app.use("/scrape/airbnb", airbnbRoutes);
-// app.use("/scrape/booking", bookingRoutes);
+app.use("/scrape/booking", bookingRoutes);
 // app.use("/scrape/tripadvisor", tripadvisorRoutes);
 
 export default app;
