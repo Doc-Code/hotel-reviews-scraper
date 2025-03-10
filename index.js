@@ -54,10 +54,25 @@ bot.onText(/\/start/, async (msg) => {
   if (await fileDb.isAuthorized(chatId)) {
     await bot.sendMessage(chatId, "Выберите источник отзывов:", sourceKeyboard);
   } else {
-    await bot.sendMessage(
-      chatId,
-      "Добро пожаловать! Пожалуйста, введите пароль для доступа к боту."
-    );
+    const welcomeMessage = `
+🤖 Добро пожаловать в AI TEXTURA Reviews!
+
+📚 Инструкция по использованию:
+https://telegra.ph/Ai-Textura--Reviews-03-10
+
+🔑 Для получения пароля обратитесь к @drcode
+
+💡 Возможности бота:
+• Сбор отзывов с Booking.com
+• AI-анализ отзывов и ответов менеджера
+• Генерация рекомендаций по ответам
+• Экспорт в Google Таблицы для детального анализа
+• Анализ тональности отзывов
+• Предложения по улучшению сервиса
+
+Пожалуйста, введите пароль для доступа к боту.`;
+
+    await bot.sendMessage(chatId, welcomeMessage, { parse_mode: "HTML" });
   }
 });
 
@@ -80,17 +95,43 @@ bot.on("message", async (msg) => {
       return;
     }
 
+    // Пропускаем обработку команды /start, так как она обрабатывается отдельно
+    if (text === "/start") {
+      return;
+    }
+
+    // Обработка команды отмены
+    if (text === "/cancel") {
+      const userState = await userStateManager.getUserState(chatId);
+      if (userState.isBusy) {
+        await userStateManager.setFree(chatId);
+        await bot.sendMessage(chatId, "✅ Операция отменена");
+        await bot.sendMessage(
+          chatId,
+          "Выберите источник отзывов:",
+          sourceKeyboard
+        );
+      } else {
+        await bot.sendMessage(chatId, "❌ Нет активных операций для отмены");
+      }
+      return;
+    }
+
     try {
+      // Проверяем авторизацию
       if (!(await fileDb.isAuthorized(chatId))) {
         const authorized = await fileDb.authorizeUser(chatId, text);
         if (authorized) {
           await bot.sendMessage(
             chatId,
-            "Доступ предоставлен! Выберите источник отзывов:",
+            "✅ Доступ предоставлен! Выберите источник отзывов:",
             sourceKeyboard
           );
         } else {
-          await bot.sendMessage(chatId, "Неверный пароль. Попробуйте еще раз.");
+          await bot.sendMessage(
+            chatId,
+            "❌ Неверный пароль. Для получения пароля обратитесь к @drcode"
+          );
         }
         return;
       }
@@ -100,24 +141,8 @@ bot.on("message", async (msg) => {
       if (userState.isBusy && text !== "/cancel") {
         await bot.sendMessage(
           chatId,
-          `В данный момент идет обработка запроса для ${userState.source}.\nДождитесь завершения или используйте команду /cancel для отмены.`
+          `⏳ В данный момент идет обработка запроса для ${userState.source}.\nДождитесь завершения или используйте команду /cancel для отмены.`
         );
-        return;
-      }
-
-      // Обработка команды отмены
-      if (text === "/cancel") {
-        if (userState.isBusy) {
-          await userStateManager.setFree(chatId);
-          await bot.sendMessage(chatId, "Операция отменена");
-          await bot.sendMessage(
-            chatId,
-            "Выберите источник отзывов:",
-            sourceKeyboard
-          );
-        } else {
-          await bot.sendMessage(chatId, "Нет активных операций для отмены");
-        }
         return;
       }
 
@@ -489,24 +514,26 @@ async function handleShowStats(chatId, session) {
 
 async function saveReviewsToCsv(reviews, filename) {
   // Определяем поля, которые нужно включить в CSV
-  const fields = [
-    "userName",
-    "travelerType",
-    "rating",
-    "checkInDate",
-    "numberOfNights",
-    "likedText",
-    "dislikedText",
-    "propertyResponse",
-    "reviewLanguage",
-    "aiAnalysis",
-    "managerResponseAnalysis",
-    "suggestedResponse",
-    "suggestedResponseRU",
-    "summary",
-  ];
+  const options = {
+    keys: [
+      "userName",
+      "travelerType",
+      "rating",
+      "checkInDate",
+      "numberOfNights",
+      "likedText",
+      "dislikedText",
+      "propertyResponse",
+      "reviewLanguage",
+      "aiAnalysis",
+      "managerResponseAnalysis",
+      "suggestedResponse",
+      "suggestedResponseRU",
+      "summary",
+    ],
+  };
 
-  const csv = await json2csv.json2csv(reviews, { fields });
+  const csv = await json2csv.convert(reviews, options);
   const filePath = path.join(process.cwd(), "data", filename);
   await fs.writeFile(filePath, csv);
   return filePath;
