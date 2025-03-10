@@ -1,5 +1,10 @@
-node_modules
-# Keep environment variables out of version control
+/node_modules
+/dist
+/build
+/coverage
+/logs
+/temp
+/cache
 .env
-# Ignore generated CSV files
-*.csv
+
+/data
