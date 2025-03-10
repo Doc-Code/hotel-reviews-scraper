@@ -1,10 +1,11 @@
 require("dotenv").config();
 const TelegramBot = require("node-telegram-bot-api");
 const express = require("express");
-const json2csv = require("json-2-csv");
+const { Parser } = require("json2csv");
+const csv = require("csv-parse/sync");
 const fs = require("fs").promises;
 const path = require("path");
-const { scrapeGoogleMapsReviews } = require("./scrapers/googleMaps");
+// const { scrapeGoogleMapsReviews } = require("./scrapers/googleMaps");
 const {
   scrapeBookingReviews,
   isValidBookingUrl,
@@ -158,7 +159,7 @@ bot.on("message", async (msg) => {
       await userStateManager.setFree(chatId);
     }
   } catch (error) {
-    console.error("Критическая ошибка в обработчике сообщений:", error);
+    console.error("Критическая ошибка в обработчике сообщений:", error.message);
   }
 });
 
@@ -513,29 +514,52 @@ async function handleShowStats(chatId, session) {
 }
 
 async function saveReviewsToCsv(reviews, filename) {
-  // Определяем поля, которые нужно включить в CSV
-  const options = {
-    keys: [
-      "userName",
-      "travelerType",
-      "rating",
-      "checkInDate",
-      "numberOfNights",
-      "likedText",
-      "dislikedText",
-      "propertyResponse",
-      "reviewLanguage",
-      "aiAnalysis",
-      "managerResponseAnalysis",
-      "suggestedResponse",
-      "suggestedResponseRU",
-      "summary",
-    ],
-  };
-
-  const csv = await json2csv.convert(reviews, options);
   const filePath = path.join(process.cwd(), "data", filename);
-  await fs.writeFile(filePath, csv);
+
+  // Исключаем ненужные поля из каждого отзыва
+  const cleanReviews = reviews.map((review) => {
+    const { hotelRatingScores, helpfulVotes, hotelId, images, ...rest } =
+      review;
+    return rest;
+  });
+
+  // Если это файл с анализом, читаем существующий файл и добавляем новые поля
+  if (filename.includes("_analyzed")) {
+    try {
+      // Получаем имя оригинального файла
+      const originalFilename = filename.replace("_analyzed", "");
+      const originalFilePath = path.join(
+        process.cwd(),
+        "data",
+        originalFilename
+      );
+
+      // Читаем оригинальный CSV и парсим его
+      const originalContent = await fs.readFile(originalFilePath, "utf-8");
+      const originalData = csv.parse(originalContent, {
+        columns: true,
+        skip_empty_lines: true,
+      });
+
+      // Объединяем данные
+      const mergedData = originalData.map((original, index) => ({
+        ...original,
+        ...cleanReviews[index],
+      }));
+
+      const json2csvParser = new Parser();
+      const newCsv = json2csvParser.parse(mergedData);
+      await fs.writeFile(filePath, newCsv);
+      return filePath;
+    } catch (error) {
+      console.error("Ошибка при объединении данных:", error);
+    }
+  }
+
+  // Для обычного файла просто сохраняем как есть
+  const json2csvParser = new Parser();
+  const newCsv = json2csvParser.parse(cleanReviews);
+  await fs.writeFile(filePath, newCsv);
   return filePath;
 }
 

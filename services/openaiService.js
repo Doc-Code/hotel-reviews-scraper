@@ -26,6 +26,9 @@ class OpenAIService {
 Дата проживания: ${review.checkInDate || "не указана"}
 Длительность: ${review.numberOfNights || "не указано"} ночей
 
+Заголовок отзыва: 
+${review.reviewTitle || "не указан"}
+
 Положительные впечатления:
 ${review.likedText || "не указаны"}
 
@@ -149,7 +152,7 @@ ${existingTagsStr}
       }
 
       // Пауза между запросами для избежания rate limits
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 50));
     }
 
     return results;
